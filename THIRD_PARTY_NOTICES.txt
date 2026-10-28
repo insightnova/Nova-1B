@@ -1,0 +1,48 @@
+Nova-1B inference release preparation
+Developer: INSIGHTNOVA
+
+The gdnh2 architecture and cached decoding implementation were adapted from the
+Nova-1B model code. SOURCE_PROVENANCE.json records the input source hashes.
+The release wrapper/exporter separates inference from the post-training pipeline.
+
+External dependencies (installed separately; their sources are not bundled):
+- OLMo-core: https://github.com/allenai/OLMo-core
+  pinned revision 92870a33c3fee060d57c3faec52b0b369ece85a6
+- Flash Linear Attention: https://github.com/fla-org/flash-linear-attention
+  flash-linear-attention 0.5.2, fla-core 0.5.2
+- Transformers: https://github.com/huggingface/transformers (4.57.6)
+- PyTorch: https://github.com/pytorch/pytorch
+- safetensors: https://github.com/huggingface/safetensors
+- FlashAttention, when selected: https://github.com/Dao-AILab/flash-attention
+
+Copyright (c) 2026 INSIGHTNOVA.
+INSIGHTNOVA-owned source code and documentation are licensed under the Apache
+License, Version 2.0; see LICENSE. Model weights are distributed separately and
+their license must be specified in the applicable model repository.
+Retain the applicable dependency notices and license obligations when distributing.
+
+CPU GDN2 recurrence reference:
+https://github.com/fla-org/flash-linear-attention/blob/v0.5.2/fla/ops/gdn2/naive.py
+nova/cpu_backend.py implements the same matrix-state update in ordinary PyTorch,
+with matching normalization, projections and checkpoint parameter names.
+The upstream reference carries the following MIT notice:
+
+Copyright (c) 2023-2026, Songlin Yang, Yu Zhang, Zhiyuan Li
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

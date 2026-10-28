@@ -1,0 +1,45 @@
+{
+  "architecture.py": {
+    "source": "gdnh2/model.py",
+    "source_sha256": "ab2fded12d841dbd7c393cffb8e1c0542564bf69f1e0d0f057f5c074c6d7925a",
+    "release_sha256": "f40c4617dde8a90cf2dea661ba96cd59cf6c31bb3e0603699c14f8095fcf9592",
+    "release_filename": "architecture.py"
+  },
+  "gdn2.py": {
+    "source": "gdnh2/gdn2.py",
+    "source_sha256": "4f94ccff363504ed236293a1691f3e489a78b41defc1896aae560dc48d031b57",
+    "release_sha256": "77ecb132da5de8f59c8e121730ceddf43162b675f345ad72140c5e649ab51316",
+    "release_filename": "gdn2.py"
+  },
+  "fast_decode.py": {
+    "source": "gdnh2/fast_decode.py",
+    "source_sha256": "955c6386a7e20a3b6b376c0634659d87b7c79ac48c48261baf22b36c4ad1507e",
+    "release_sha256": "02867eb41253886aa46d53f5cb261ad656133b72a6ff70bb3c9b6debe931c560",
+    "release_filename": "fast_decode.py"
+  },
+  "sequence_utils.py": {
+    "source": "gdnh2/gdn_varlen.py",
+    "source_sha256": "5e678923a253de1491f47eb73cc6c8a428e3789f10834901541007aaaeeeaa32",
+    "release_sha256": "8214a6627b12a96d42e48427faeb4f17b5eafda0528847f643907247f442ffbe",
+    "release_filename": "sequence_utils.py"
+  },
+  "gdn2_spec.py": {
+    "source": "gdnh2/spec.py",
+    "source_sha256": "c61ddeaaa18821d3b706be56f042a077f4154f4e4d4657e9e6002babcc7e15ab",
+    "release_sha256": "276ff07404fec37ae3e36e96871c09b30959bf12850d6a26ce363de3c4fbe20f",
+    "release_filename": "gdn2_spec.py"
+  },
+  "architecture_config.py": {
+    "source": "gdnh2/config.py",
+    "source_sha256": "c3759dfd46cfc6296699b8567d13d035c1579dbc19d972a24d9db2fcbe542194",
+    "adaptation": "Only model shape and architecture options retained; training settings removed",
+    "release_sha256": "b5bfcc740772d7333d66f011263088e7f9a1865e6506ecae7710518918cb9927",
+    "release_filename": "architecture_config.py"
+  },
+  "cpu_backend.py": {
+    "reference": "FLA 0.5.2 GDN2 layer/recurrence and OLMo-core architecture semantics",
+    "adaptation": "Inference-only ordinary PyTorch CPU/CUDA implementation, original checkpoint keys retained",
+    "release_filename": "cpu_backend.py",
+    "release_sha256": "bf346e77ca3e498841c0cee2df6e484e3a4f5a6e0e53498136a38a2d61b440cd"
+  }
+}
