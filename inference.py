@@ -57,4 +57,5 @@ def main():
     print(tokenizer.decode(output[0,inputs['input_ids'].shape[1]:],skip_special_tokens=True).strip())
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':
+    main()

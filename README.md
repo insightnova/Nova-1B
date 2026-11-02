@@ -2,7 +2,9 @@
 
 **Nova-1B**는 **주식회사 인사이트노바(INSIGHTNOVA)**가 개발한 한국어·영어 중심의 자가회귀(auto-regressive) 언어모델이다. Gated DeltaNet 2(GDN2)와 Grouped-Query Attention(GQA)을 결합한 하이브리드 구조와 자체 개발한 Byte-Level BPE 토크나이저를 사용했다.
 
-공개 데이터셋을 수집·정제하여 **3-stage pre-training**을 수행하고, **SFT → DPO → RL(SAPO)** 순서로 post-training을 진행했다. pre-training에서 **약 362.3B 토큰**, post-training을 포함한 전체 학습에서 **약 372B 토큰**을 처리했다. 이는 서로 다른 고유 토큰의 수가 아니라 누적 학습량이다.
+공개 데이터셋을 수집·정제하여 **3-stage pre-training**을 수행하고, **SFT → DPO → RL(RLVR + RLAIF, SAPO)** 순서로 post-training을 진행했다. pre-training에서 **약 362.3B 토큰**, post-training을 포함한 전체 학습에서 **약 372B 토큰**을 처리했다. 
+
+본 저장소는 Hugging Face Transformers 연동 코드와 추론 예제를 제공한다. 학습된 모델 가중치는 Huggingface Hub [insightnova/Nova-1B](https://huggingface.co/insightnova/Nova-1B)에서 배포한다. 
 
 ## 모델 구성
 
@@ -16,8 +18,9 @@
 | Attention | GQA (Query head 12개, KV head 4개), Sliding Window Attention |
 | Attention window / 최대 문맥 길이 | 4,096 / 8,192토큰 |
 | 토크나이저 | 자체 Byte-Level BPE, 어휘 65,536개 |
+| 가중치 | FP32 safetensors(약 4.9GB) |
 
-GDN2와 Attention 블록을 교대로 배치하고, Attention에 RoPE와 Query/Key 정규화를 적용했다. 입력 임베딩과 출력 헤드의 가중치를 공유했다.
+GDN2와 Attention 블록을 교대로 배치하고, Attention에 RoPE와 Query/Key 정규화를 적용했다.
 
 ## 학습 데이터
 
@@ -38,8 +41,6 @@ GDN2와 Attention 블록을 교대로 배치하고, Attention에 RoPE와 Query/K
 | Stage 3 | 고품질 장문 및 한영 병렬 데이터 | 8,192 | 70.8B 토큰 |
 | **합계** | | | **약 362.3B 토큰** |
 
-Stage 3에는 정제한 한영 병렬 데이터 **3,052,224문장쌍**을 두 번역 방향으로 균등하게 구성하여 배치했다. 학습률에는 WSD(Warmup–Stable–Decay) 스케줄을 적용했다.
-
 ### 2. SFT — 지시 및 대화 응답 학습
 
 한국어·영어 질의응답, 다중 턴 대화, 문서 독해, 글쓰기·교정 및 지시 수행 데이터로 SFT(Supervised Fine-Tuning)를 수행했다. 대화 이력을 문맥으로 사용하고 assistant 응답에 대해 손실을 계산했다. **약 1,204만 개의 응답 단위 샘플**을 학습했다.
@@ -48,27 +49,27 @@ Stage 3에는 정제한 한영 병렬 데이터 **3,052,224문장쌍**을 두 �
 
 한국어·영어 선호 데이터의 선호 응답(chosen)과 비선호 응답(rejected)을 비교하여 DPO(Direct Preference Optimization)를 수행했다. 고정된 참조 모델을 기준으로 선호 응답의 상대적인 생성 확률을 높이도록 학습했다. **719,507개 선호 응답쌍**을 사용했다.
 
-### 4. RL - SAPO 기반 검증 및 AI 평가에 따른 강화학습
+### 4. RL — 검증 가능한 보상(RLVR)과 AI 피드백(RLAIF)에 따른 강화학습(SAPO)
 
-SAPO(Soft Adaptive Policy Optimization)를 적용하여 모델이 생성한 응답을 평가하고 정책을 업데이트했다. 문자열·수치·날짜 정답은 검증기(verifier)로 확인하고, 응답의 내용과 근거는 LLM 평가 모델(judge)로 평가했다. 한국어 **19,077건**, 영어 **6,942건**을 포함한 **26,019개 프롬프트**로 학습했다.
+SAPO(Soft Adaptive Policy Optimization)를 적용하여 모델이 생성한 응답을 평가하고 정책을 업데이트했다. 문자열·수치·날짜 정답은 검증기(verifier)로 확인하고(RLVR), 응답의 내용과 근거는 LLM 평가 모델(judge)로 평가했다(RLAIF). 한국어 **19,077건**, 영어 **6,942건**을 포함한 **26,019개 프롬프트**로 학습했다.
 
 ## 평가 결과
 
-SAPO까지 학습한 최종 Nova-1B를 14개 과제의 전체 테스트 세트에서 **0-shot·10-shot**으로 평가했다. 10-shot은 가중치를 고정한 상태에서 프롬프트에 예시 10개를 제공하는 in-context learning 조건이다.
+RL까지 학습한 최종 Nova-1B를 한국어·영어 22개 과제의 전체 테스트 세트에서 **0-shot·10-shot**으로 평가했다. 10-shot은 가중치를 고정한 상태에서 프롬프트에 예시 10개를 제공하는 in-context learning 조건이다.
+
+> **아래 수치는 공식 점수가 아니라 자체 측정 결과다.** Nova-1B와 비교 모델 모두 인사이트노바의 평가 파이프라인에서 자체 프롬프트·few-shot 구성·디코딩 설정·채점 코드로 측정했다. 결과는 이 선택에 따라 달라지므로, 다른 프롬프트나 평가 도구를 쓰면 다른 점수가 나올 수 있고, 비교 모델의 수치는 각 개발사가 보고한 값과 다를 수 있다.
 
 ### 비교 모델 및 입력 형식
 
 | 표기 | 모델 | 입력 형식 |
 |---|---|---|
-| Nova-1B | INSIGHTNOVA Nova-1B, 약 1.22B | 대화 템플릿을 적용하지 않은 평문 |
-| Llama IT | Llama 3.2 1B Instruct | 공식 대화 템플릿, 고정된 대화형 구성 |
-| Gemma IT | Gemma 3 1B IT | 공식 대화 템플릿, 고정된 대화형 구성 |
-| CLOVA IT | HyperCLOVA X SEED Text Instruct 1.5B | 공식 대화 템플릿, 고정된 대화형 구성 |
-| EXAONE IT | EXAONE 4.0 1.2B | 공식 대화 템플릿, 고정된 대화형 구성 |
+| Nova-1B | Nova-1B, 약 1.22B | 대화 템플릿을 적용하지 않은 평문 |
+| Llama IT | Llama 3.2 1B Instruct | 공식 대화 템플릿 |
+| Gemma IT | Gemma 3 1B IT | 공식 대화 템플릿 |
+| CLOVA IT | HyperCLOVA X SEED Text Instruct 1.5B | 공식 대화 템플릿 |
+| EXAONE IT | EXAONE 4.0 1.2B | 공식 대화 템플릿 |
 
-비교 모델의 입력 구성은 두 방식의 전체 평가가 모두 완료된 NSMC·YNAT·BoolQ·SQuAD에서 모델별로 비교한 뒤 선택했다. 네 모델 모두 대화형 구성이 전반적으로 우수하여, 해당 구성을 14개 과제에 고정했다. 10-shot 예시는 user/assistant 메시지로 교대로 배치하고, 지시문은 첫 user 메시지에 넣었다. 과제별로 서로 다른 템플릿의 최고 점수를 골라 합산하지 않았다.
-
-각 모델은 동일한 평가 문항과 few-shot 예시를 사용했다. 전체 테스트 세트 평가를 완료한 **140개 조건(5개 모델 × 14개 과제 × 2개 shot)**을 아래에 제시한다. 표본 실험 결과는 포함하지 않았다.
+모든 모델은 동일한 평가 문항과 동일한 10-shot 예시를 사용했다. 프롬프트 문구와 배치는 모델별로 선택했다. 비교 모델은 NSMC·YNAT·KoBEST BoolQ·SQuAD에서 공식 대화 템플릿 안의 단일 메시지 구성과 다중 턴 구성을 비교했고, 네 모델 모두 다중 턴 구성이 전반적으로 우수하여 이를 사용했다(예시는 user/assistant 메시지로 교대 배치, 지시문은 첫 user 메시지에 포함).
 
 ### 0-shot
 
@@ -88,6 +89,14 @@ SAPO까지 학습한 최종 Nova-1B를 14개 과제의 전체 테스트 세트�
 | CoNLL-2003 / F1 | 0.00 | 0.00 | 0.00 | **1.73** | 0.00 |
 | 영어→한국어 / BLEU | 20.00 | 7.72 | 18.90 | **26.89** | 23.64 |
 | 한국어→영어 / BLEU | **26.53** | 13.69 | 18.61 | 16.86 | 24.35 |
+| BoolQ / Accuracy | 74.22 | 65.41 | 73.12 | **76.85** | 74.28 |
+| PIQA / Acc_norm | **74.27** | 72.74 | 67.79 | 71.38 | 66.92 |
+| SIQA / Acc_norm | **49.13** | 43.86 | 41.76 | 44.11 | 42.27 |
+| HellaSwag / Acc_norm | **60.72** | 55.38 | 40.15 | 57.35 | 48.88 |
+| WinoGrande / Accuracy | **59.83** | 58.09 | 54.93 | 58.01 | 54.22 |
+| ARC-e / Acc_norm | **65.57** | 48.48 | 44.87 | 53.79 | 44.95 |
+| ARC-c / Acc_norm | **41.38** | 34.73 | 35.67 | 38.65 | 35.15 |
+| OpenBookQA / Acc_norm | 36.40 | **40.00** | 39.20 | 35.80 | 33.40 |
 
 ### 10-shot
 
@@ -107,75 +116,69 @@ SAPO까지 학습한 최종 Nova-1B를 14개 과제의 전체 테스트 세트�
 | CoNLL-2003 / F1 | 41.98 | 40.86 | 41.75 | 11.17 | **43.68** |
 | 영어→한국어 / BLEU | 22.87 | 9.08 | 21.13 | **28.67** | 24.36 |
 | 한국어→영어 / BLEU | **29.88** | 16.16 | 18.62 | 28.24 | 20.48 |
+| BoolQ / Accuracy | 75.11 | 39.72 | 68.84 | **76.70** | 76.61 |
+| PIQA / Acc_norm | **75.08** | 73.07 | 71.87 | 70.95 | 68.44 |
+| SIQA / Acc_norm | **54.45** | 42.02 | 48.16 | 49.03 | 48.11 |
+| HellaSwag / Acc_norm | **61.96** | 51.38 | 41.67 | 55.96 | 45.27 |
+| WinoGrande / Accuracy | **62.51** | 59.12 | 54.54 | 55.17 | 54.30 |
+| ARC-e / Acc_norm | **72.35** | 38.09 | 54.12 | 65.03 | 60.61 |
+| ARC-c / Acc_norm | **43.09** | 34.56 | 37.88 | 42.15 | 41.21 |
+| OpenBookQA / Acc_norm | **38.20** | 34.20 | 35.80 | 36.60 | 33.00 |
 
-굵은 글씨는 각 행의 최고값이다. Accuracy와 F1은 0–100 척도로 표시했으며, BLEU는 0–100점, Pearson은 상관계수 원값이다. KoBEST는 **macro-F1**, KorQuAD·SQuAD는 **답변 토큰 F1**, CoNLL-2003은 **개체 단위 micro-F1**을 사용했다.
+굵은 글씨는 각 행의 최고값이다. Accuracy·F1·BLEU는 0–100 척도이며, STS-B는 Pearson 상관계수 원값이다. KoBEST는 **macro-F1**, KorQuAD·SQuAD는 **답변 토큰 F1**, CoNLL-2003은 **개체 단위 micro-F1**을 사용했다. Acc_norm은 선택지의 로그 우도를 문자 길이로 정규화한 정확도다. 영어 BoolQ·HellaSwag는 한국어 KoBEST의 같은 이름 과제와 별개다.
 
 ### 평가 설정과 해석
 
 | 항목 | 설정 |
 |---|---|
-| 평가 체크포인트 | Nova-1B 및 각 비교 모델의 instruction-tuned 체크포인트 |
+| 평가 체크포인트 | Nova-1B 최종 체크포인트 및 각 비교 모델의 instruction-tuned 체크포인트 |
 | Seed / 최대 문맥 길이 | 42 / 8,192토큰 |
-| 연산 정밀도 | BF16 |
-| 생성 방식 | Greedy decoding |
+| 연산 정밀도 | BF16 (5개 모델 모두) |
+| 생성 과제 | Greedy decoding |
+| 분류·선택형 과제 | 선택지 로그 우도 비교 |
 | 최대 생성 길이 | 독해 64, STS 16, 개체명 인식 128, 번역 256토큰 |
-| Nova 기존 평문 실행 | 평가 배치 상한 64, microbatch token budget 16,384, 독해는 문항별 생성 |
-| 비교 모델 고정 대화형 실행 | 평가 배치 상한 16, microbatch token budget 8,192, 독해는 배치 생성 |
 
-이 결과는 **모델별 입력 형식을 명시한 비교**다. 입력 형식과 기존 실행의 배치 설정이 달라 엄밀한 동일 조건 비교로 해석하지 않는다. 템플릿 선택에 사용한 4개 과제는 최종 표에도 포함되어 있으므로, 해당 점수는 독립적인 선택 후 평가와 구분해야 한다.
+이 결과는 모델별로 선택한 프롬프트에 따른 것이며 그 맥락에서 해석해야 한다. 비교 모델의 입력 구성을 고르는 데 쓴 4개 과제는 최종 표에도 포함되어 있으므로, 해당 항목은 독립적인 평가로 보기 어렵다. 점수를 재현하려면 각 과제의 프롬프트, 예시, 채점 방식도 함께 맞춰야 한다. Nova-1B 점수는 BF16으로 측정했으며, `compute_dtype="float32"`로 실행하면 약간 다를 수 있다(아래 [연산 정밀도](#연산-정밀도) 참고).
 
-Nova-1B는 28개 과제·shot 조건 중 **8개에서 1위, 9개에서 2위**를 기록했다. 한국어 독해, 한국어 HellaSwag, 한국어→영어 번역에서 두 shot 모두 가장 높은 점수를 보였으며, SQuAD 10-shot에서도 가장 높은 점수를 기록했다. 뉴스 주제 분류와 단어 의미 판별은 개선이 필요한 영역이다. 순위는 서로 다른 지표를 합산한 종합 점수가 아니며, 작은 점수 차이의 통계적 유의성을 의미하지 않는다.
+Nova-1B는 한국어 독해(KorQuAD), 한국어 HellaSwag, 한국어→영어 번역에서 두 shot 모두 가장 높은 점수를 보였고, SQuAD 10-shot에서도 가장 높은 점수를 기록했다. 뉴스 주제 분류(YNAT)와 단어 의미 판별(WiC)은 개선이 필요한 영역이다. 작은 점수 차이는 통계적 유의성을 의미하지 않는다.
 
 ## 모델 소스 코드 사용법
 
-이 저장소는 Nova-1B의 모델 구현, Hugging Face 연동 코드, 추론 도구를 제공한다. 모델 가중치는 별도로 준비한 **Hugging Face 형식의 완전한 모델 폴더**를 사용한다. 아래 예시의 `exports/Nova-1B`를 실제 모델 폴더 경로로 바꾸면 된다.
+모델 가중치는 이 저장소에 포함되지 않으며 Hugging Face Hub에서 내려받는다. 아래 예시는 Hub 저장소를 `exports/Nova-1B`에 내려받았다고 가정한다. 이 폴더에는 가중치·토크나이저·모델 코드가 모두 들어 있다.
+
+```bash
+hf download insightnova/Nova-1B --local-dir exports/Nova-1B
+```
+
+`hf` CLI는 아래 설치 과정에서 함께 설치되는 `huggingface-hub`에 포함되어 있다. 로컬 폴더 대신 Hub 저장소 ID를 직접 쓸 수도 있다(`--model insightnova/Nova-1B --trust-remote-code`).
+
+모델을 불러오는 방법은 두 가지이며, 같은 가중치와 같은 클래스(`NovaConfig`, `NovaModel`, `NovaForCausalLM`)를 사용한다.
+
+| | 설치 | 로딩 | 적합한 경우 |
+|---|---|---|---|
+| **Hub remote code** | `transformers==4.57.6`, `torch>=2.8`, `safetensors` | `from_pretrained("insightnova/Nova-1B", trust_remote_code=True)` | 모델을 실행만 하면 되는 경우 |
+| **이 저장소 설치** | `pip install -e .` 후 `nova.register()` | `trust_remote_code=False`(기본값) | 코드를 읽거나 수정하는 경우 |
 
 ### 폴더 구성
 
 ```text
 example.py                 # GPU 번역 예제 (--backend torch 또는 flash)
 example_cpu.py             # CPU 영어→한국어 번역 예제
+inference.py               # 평문 질문·응답 CLI (CPU·GPU)
 nova/
-  configuration_nova.py     # 모델 설정 및 AutoConfig 연동
-  modeling_nova.py          # AutoModelForCausalLM 연동
+  configuration_nova.py     # NovaConfig, AutoConfig 등록, remote-code 진입점(AUTO_MAP)
+  modeling_nova.py          # NovaModel(AutoModel), NovaForCausalLM(AutoModelForCausalLM)
   generation_nova.py        # 생성 및 배치 처리
-  architecture.py          # GDN2 + GQA 모델 구조
-  architecture_config.py   # 모델 구조 옵션
+  cpu_backend.py           # PyTorch 기반 CPU·GPU 추론 (FlashAttention 불필요)
+  architecture.py          # FlashAttention 경로의 GDN2 + GQA 모델 구조 (OLMo-core)
+  architecture_config.py   # 모델 구조 preset과 옵션
   gdn2.py                  # GDN2 블록 및 FLA 연결
   gdn2_spec.py             # GDN2 차원 정의
-  cpu_backend.py           # PyTorch 기반 CPU·GPU 추론 (FlashAttention 불필요)
   fast_decode.py           # FlashAttention 경로의 캐시 기반 추론
   sequence_utils.py        # 시퀀스 입력 처리
-scripts/
-  export_hf.py             # 체크포인트의 Hugging Face 형식 변환
-  infer.py                 # 평문 질문·응답 CLI
-  verify_bundle.py         # 배포 파일 및 선택적 CUDA 검증
-tests/                     # 인터페이스·직렬화·생성 동작 검증
 ```
 
-### CPU 설치 및 번역 예제
-
-Python 3.10 이상에서 `pyproject.toml`이 있는 저장소 루트로 이동한다. 기존 패키지와의 충돌을 피하려면 별도 가상환경을 사용한다. CPU 추론에는 Flash extra, OLMo-core, FLA, FlashAttention을 설치할 필요가 없다.
-
-```bash
-python -m venv .venv
-# Linux/macOS
-source .venv/bin/activate
-# Windows PowerShell에서는 위 줄 대신: .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e .
-python example_cpu.py --model exports/Nova-1B
-```
-
-`example_cpu.py`는 실제 가중치를 CPU의 FP32로 불러와 영어 문장을 한국어로 번역한다. 기본 입력은 `My happy life`이며, Windows CPU에서 `나의 행복한 삶` 출력을 확인했다. 기본 CPU 스레드는 최대 4개이고 `--threads 8` 등으로 변경할 수 있다.
-
-```bash
-python example_cpu.py --model exports/Nova-1B --text "My happy life" --max-new-tokens 64
-```
-
-완전한 모델 폴더에는 가중치와 토크나이저가 모두 있어야 한다. GitHub 코드 ZIP에는 가중치가 포함되지 않는다. FP32 가중치 자체는 약 4.9GB이며, 실행에는 캐시·연산 버퍼와 운영체제를 위한 RAM이 추가로 필요하다. GPU 메모리 부족 시 자동 전환하는 방식이 아니므로 CPU 실행에는 이 예제를 명시적으로 사용한다. Mac 실행은 별도로 검증하지 않았다.
-
-AutoClass를 직접 사용할 때는 `from_pretrained(..., inference_backend="cpu", dtype=torch.float32)`로 불러온 뒤 `.to("cpu").eval()`을 호출하고 입력도 CPU에 둔다. GPU 예제의 기본 백엔드는 `torch`이며, FlashAttention 사용 시 `flash`를 명시한다.
+내려받은 모델 폴더(`exports/`)와 가중치, 캐시, 가상환경은 저장소에 포함하지 않는다(`.gitignore`).
 
 ### GPU 설치: 두 가지 선택지
 
@@ -197,6 +200,15 @@ python -c "import torch; print(torch.__version__); assert torch.cuda.is_availabl
 python example.py --model exports/Nova-1B --device cuda:0 --backend torch
 ```
 
+`example.py`는 `AutoTokenizer`와 `AutoModelForCausalLM`로 모델을 불러와 영어 문장을 한국어로 번역한다. 최종 가중치에서 greedy decoding으로 확인한 출력:
+
+```text
+English: My happy life
+Korean: 나의 행복한 삶
+```
+
+번역문은 모델이 직접 생성한 결과이며, 예제 코드에 정답을 넣거나 출력 후 번역문을 대체하지 않는다. 다른 문장은 `--text`로, 생성 길이는 `--max-new-tokens`로 지정한다.
+
 이 방식에는 별도 CUDA 확장 컴파일이 필요하지 않다. PyTorch SDPA로 GQA와 sliding-window attention을 계산하고, GDN2는 PyTorch 재귀 계산을 사용한다. 생성 중에는 GDN2 상태·convolution 상태·attention KV cache를 유지한다. 긴 입력의 초기 처리에는 가속 경로보다 시간이 더 걸릴 수 있다. PyTorch가 내부적으로 선택하는 attention 커널과 별도 설치 패키지 `flash-attn`은 구분된다.
 
 #### 2. FlashAttention 가속 설치·실행
@@ -213,41 +225,33 @@ python example.py --model exports/Nova-1B --device cuda:0 --backend flash
 
 `--no-build-isolation`은 현재 가상환경의 빌드 도구를 사용한다. `MAX_JOBS=1 NVCC_THREADS=1`은 컴파일 병렬도를 제한하며 추론 속도에는 영향을 주지 않는다. `Killed`로 빌드가 종료되면 시스템·컨테이너 메모리 한도를 확인한다. [FlashAttention 설치 안내](https://github.com/Dao-AILab/flash-attention#installation-and-features)
 
-가속 경로의 의존성은 Transformers `4.57.6`, FLA·fla-core `0.5.2`, Triton `3.7.1`, 지정 commit의 OLMo-core이며 PyTorch `2.10` 이상을 요구한다. 실제 설치 버전은 이 의존성들의 호환 조건을 함께 만족해야 한다. FlashAttention 설치는 CUDA·PyTorch 및 빌드 환경에 따라 달라질 수 있다. `flash`를 선택했는데 의존성이 없으면 설치 안내와 함께 오류를 표시한다.
+가속 경로의 의존성은 Transformers `4.57.6`, FLA·fla-core `0.5.2`, Triton `3.7.1`, `pyproject.toml`에 지정한 commit의 OLMo-core이며 PyTorch `2.10` 이상을 요구한다. 실제 설치 버전은 이 의존성들의 호환 조건을 함께 만족해야 한다. FlashAttention 설치는 CUDA·PyTorch 및 빌드 환경에 따라 달라질 수 있다. `flash`를 선택했는데 의존성이 없으면 설치 안내와 함께 오류를 표시한다.
 
-완전한 모델 폴더에는 가중치와 토크나이저가 모두 있어야 한다. GitHub 코드 ZIP에는 가중치가 포함되지 않는다. GPU 메모리가 부족할 때 CPU로 자동 전환하지 않는다. CPU 실행은 앞의 `example_cpu.py`를 사용한다.
+### CPU 설치 및 번역 예제
 
-코드 테스트:
-
-```bash
-python -m pip install -e ".[test]"
-python -m pytest tests -q
-```
-
-### 빠른 시작: 영어→한국어 번역
-
-저장소 루트의 [`example.py`](example.py)는 `AutoTokenizer`와 `AutoModelForCausalLM`로 모델을 불러와 평문 번역을 수행한다. `exports/Nova-1B`에 완전한 모델 폴더를 준비한 뒤 실행한다.
+Python 3.10 이상에서 `pyproject.toml`이 있는 저장소 루트로 이동한다. 기존 패키지와의 충돌을 피하려면 별도 가상환경을 사용한다. CPU 추론에는 Flash extra, OLMo-core, FLA, FlashAttention을 설치할 필요가 없다.
 
 ```bash
-python example.py --model exports/Nova-1B
+python -m venv .venv
+# Linux/macOS
+source .venv/bin/activate
+# Windows PowerShell에서는 위 줄 대신: .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .
+python example_cpu.py --model exports/Nova-1B
 ```
 
-실제 최종 가중치에서 greedy decoding으로 확인한 출력:
-
-```text
-English: My happy life
-Korean: 나의 행복한 삶
-```
-
-번역문은 모델이 직접 생성한 결과이며, 예제 코드에 정답을 넣거나 출력 후 번역문을 대체하지 않는다. 다른 문장은 `--text`로 지정한다.
+`example_cpu.py`는 같은 번역 예제를 CPU의 FP32로 실행한다. Windows CPU에서도 `나의 행복한 삶` 출력을 확인했다. 기본 CPU 스레드는 최대 4개이고 `--threads 8` 등으로 변경할 수 있다. Hub에서 직접 불러오려면 `--model insightnova/Nova-1B --trust-remote-code`를 지정한다.
 
 ```bash
-python example.py --model exports/Nova-1B --text "My happy life" --max-new-tokens 64
+python example_cpu.py --model exports/Nova-1B --text "My happy life" --max-new-tokens 64
 ```
+
+FP32 가중치 자체는 약 4.9GB이며, 실행에는 캐시·연산 버퍼와 운영체제를 위한 RAM이 추가로 필요하다. Nova-1B는 GPU 추론을 전제로 설계했으며, CPU 실행은 테스트나 소량 사용을 위한 선택지다. GPU 메모리 부족 시 CPU로 자동 전환하지 않으므로 CPU 실행에는 이 예제를 명시적으로 사용한다. Mac 실행은 별도로 검증하지 않았다.
 
 ### 모델과 토크나이저 로딩
 
-패키지를 설치한 환경에서 `nova.register()`를 호출하면 `AutoConfig`와 `AutoModelForCausalLM`에 Nova 구현이 등록된다. 토크나이저는 `AutoTokenizer`로 불러온다.
+패키지를 설치한 환경에서 `nova.register()`를 호출하면 `AutoConfig`, `AutoModel`, `AutoModelForCausalLM`에 Nova 구현이 등록된다. 토크나이저는 `AutoTokenizer`로 불러온다.
 
 ```python
 import torch
@@ -255,7 +259,7 @@ import nova
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 nova.register()
-model_path = "exports/Nova-1B"  # 가중치와 토크나이저가 포함된 모델 폴더
+model_path = "exports/Nova-1B"  # 또는 "insightnova/Nova-1B"
 device = "cuda:0"
 
 tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -266,11 +270,23 @@ model = AutoModelForCausalLM.from_pretrained(
 ).to(device).eval()
 ```
 
-기본 로딩은 체크포인트의 저장 정밀도를 유지하며, CUDA 연산에는 BF16 autocast를 사용한다. 백엔드 간 부동소수점 연산 차이로 생성 결과가 달라질 수 있다. 생성 API는 `AutoModelForCausalLM`을 기준으로 제공한다.
+패키지를 설치하지 않고 Hub 저장소의 모델 코드를 그대로 쓰려면 `nova.register()` 없이 `trust_remote_code=True`를 지정한다. 모델 코드가 Hub에서 내려받아 실행되므로, 재현이 중요한 배포에서는 검토한 commit을 `revision="<commit-sha>"`로 고정한다.
+
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+repo_id = "insightnova/Nova-1B"
+tokenizer = AutoTokenizer.from_pretrained(repo_id)
+model = AutoModelForCausalLM.from_pretrained(repo_id, trust_remote_code=True).to("cuda:0").eval()
+```
+
+기본 로딩은 체크포인트의 저장 정밀도(FP32)를 유지하며, CUDA 연산에는 BF16 autocast를 사용한다. 백엔드 간 부동소수점 연산 차이로 생성 결과가 달라질 수 있다. Transformers `4.57.6`에서 검증했으며, 다른 버전에서는 모델 코드가 경고를 출력한다.
+
+CPU에서 AutoClass를 직접 사용할 때는 `from_pretrained(..., inference_backend="cpu", compute_dtype="float32", dtype=torch.float32)`로 불러온 뒤 `.to("cpu").eval()`을 호출하고 입력도 CPU에 둔다.
 
 ### 평문 추론
 
-추론에는 BOS 뒤에 평문을 입력한다. 질문 응답은 `질문: ...\n답변:` 형식을 사용한다. 아래 코드는 위에서 불러온 모델과 토크나이저를 사용한다. 위 벤치마크의 정확한 재현에는 각 과제의 프롬프트, 예시, 채점 방식도 함께 맞춰야 한다.
+추론에는 BOS 뒤에 평문을 입력한다. 토크나이저는 BOS를 자동으로 붙이지 않으므로 직접 앞에 넣는다. 질문 응답은 `질문: ...\n답변:` 형식을 사용한다. 아래 코드는 위에서 불러온 모델과 토크나이저를 사용한다.
 
 ```python
 prompt = "질문: 대한민국의 수도는 어디인가요?\n답변:"
@@ -290,14 +306,22 @@ with torch.inference_mode():
 print(tokenizer.decode(output[0, input_ids.shape[1]:], skip_special_tokens=True))
 ```
 
+| 용도 | 프롬프트 |
+|---|---|
+| 질문 응답 | `질문: {질문}\n답변:` |
+| 영어→한국어 번역 | `Translate the following English sentence into Korean. Output only the translation.\nEnglish: {문장}\nKorean:` |
+| 지시문 + 질문 | `{지시문}\n\n질문: {질문}\n답변:` |
+
+**대화 템플릿을 배포하지 않는 이유.** 모델은 대화 템플릿으로 post-training했지만, 평가에서 평문 입력이 전반적으로 더 좋은 결과를 보였다. 그래서 `chat_template` 없이 배포하고 평문을 지원 인터페이스로 삼는다.
+
 입력과 생성 토큰을 합친 문맥 상한은 8,192토큰이다. `max_new_tokens`는 생성 상한이며, 기본 구현은 입력 뒤에 남은 문맥 범위 안에서 생성한다.
 
 ### 명령줄 실행
 
-`scripts/infer.py`는 `--prompt`의 내용을 `질문: ...\n답변:`이라는 일반 텍스트로 구성하고 BOS를 한 번 붙인다.
+`inference.py`는 `--prompt`의 내용을 `질문: ...\n답변:`이라는 일반 텍스트로 구성하고 BOS를 한 번 붙인다. `--system`으로 질문 앞에 평문 지시문을 넣을 수 있다.
 
 ```bash
-python scripts/infer.py \
+python inference.py \
   --model exports/Nova-1B \
   --device cuda:0 \
   --backend torch \
@@ -305,68 +329,76 @@ python scripts/infer.py \
   --max-new-tokens 128
 ```
 
-FlashAttention 가속 설치를 마쳤다면 `--backend flash`로 실행한다. CPU에서는 `--device cpu --backend torch`를 사용한다.
+FlashAttention 가속 설치를 마쳤다면 `--backend flash`로 실행한다. CPU에서는 `--device cpu --backend torch`를 사용한다. Hub 저장소를 직접 쓰려면 `--model insightnova/Nova-1B --trust-remote-code`를 지정한다.
 
-B200·BF16·greedy 조건에서 두 GPU 백엔드 모두 다음 답변을 생성하고 종료 토큰으로 정상 종료했다.
+Linux NVIDIA GPU·BF16·greedy 조건에서 `torch`·`flash` 두 백엔드 모두 다음 답변을 생성하고 종료 토큰으로 정상 종료했다.
 
 ```text
 대한민국의 수도는 서울입니다.
 ```
 
-번역 예제도 두 경로 모두 `My happy life → 나의 행복한 삶`으로 정상 종료했다. 출력은 모델이 생성하며 코드에서 응답을 치환하지 않는다. 자기소개 등 일부 입력에서는 답변 뒤에 질문을 추가로 만들거나 반복하여 생성 상한에 도달할 수 있다.
-
 `--sample`을 추가하면 temperature `0.8`, top-p `0.95`로 샘플링한다. 기본 실행은 greedy decoding이다.
 
-### 체크포인트 변환 및 검증
+### `AutoModel`로 hidden state 얻기
 
-공개 가중치는 SAPO까지 학습한 최종 체크포인트 하나이며, 공개 이름은 **Nova-1B**다. 최종 체크포인트를 별도 배포 폴더로 변환한다.
+`AutoModel`은 어휘 투영을 제외한 백본을 돌려준다. `last_hidden_state`는 출력 헤드 직전의 최종 RMSNorm 출력(차원 1,536)이며, `output_hidden_states=True`를 주면 임베딩 출력과 26개 블록 출력(총 27개)도 함께 얻는다. 패딩 위치는 0으로 채워진다.
 
-```bash
-python scripts/export_hf.py \
-  --checkpoint /path/to/final_checkpoint \
-  --output exports/Nova-1B \
-  --max-shard-gb 1
+```python
+from transformers import AutoModel
 
-python scripts/verify_bundle.py --model exports/Nova-1B
-python scripts/verify_bundle.py --model exports/Nova-1B --cuda --backend torch
-# 가속 설치 환경에서:
-python scripts/verify_bundle.py --model exports/Nova-1B --cuda --backend flash
+backbone = AutoModel.from_pretrained(model_path, inference_backend="torch").to(device).eval()
+batch = tokenizer(["안녕하세요.", "Hello, Nova!"], padding=True, return_tensors="pt").to(device)
+with torch.inference_mode():
+    out = backbone(**batch, output_hidden_states=True)
+out.last_hidden_state.shape   # torch.Size([2, seq_len, 1536])
+len(out.hidden_states)        # 27
 ```
 
-변환 결과에는 분할 `safetensors`, 모델 설정, 토크나이저, custom model code와 파일별 SHA-256 기록이 포함된다. 원본 체크포인트는 유지하고 새 폴더에 저장한다. 원시 사전학습 DCP·옵티마이저 상태는 이 변환기의 입력 대상이 아니다.
+출력 헤드가 입력 임베딩과 공유되므로 `backbone.get_output_embeddings()(out.last_hidden_state)`는 `AutoModelForCausalLM`의 logits를 재현한다. FP32에서는 1e-3 이내로 일치하고, 기본 BF16 autocast에서는 두 경로의 행렬 곱 형태가 달라 BF16 반올림 범위(logit 기준 소수점 첫째 자리 수준)의 차이가 생기지만 top-1 토큰은 같다.
 
-`--metadata-only`로 만든 미리보기는 가중치가 없어 추론에 사용할 수 없다. 개발 과정의 CPU 테스트는 다음 명령으로 실행한다.
+### 연산 정밀도
 
-```bash
-python -m pip install -e ".[test]"
-python -m pytest tests -q
+CUDA에서는 FP32 가중치를 메모리에 유지한 채 기본적으로 BF16 autocast로 연산한다(`compute_dtype="bfloat16"`). `compute_dtype="float32"`를 지정하면 forward 전체를 FP32로 계산한다.
+
+```python
+model = AutoModelForCausalLM.from_pretrained(model_path, compute_dtype="float32").to(device).eval()
 ```
+
+BF16 autocast는 logits를 약간 바꾸므로 두 설정의 출력이 다를 수 있다. 자체 테스트에서는 일부 프롬프트에서 FP32 연산이 다소 안정적이었는데, 이는 정성적 관찰이며 위 벤치마크(BF16 측정)에는 반영되지 않았다. 예상과 다른 생성이 나오면 속도·메모리 비용을 감수하고 `compute_dtype="float32"`를 시도해 볼 수 있다.
+
+Ampere 이후 GPU에서는 PyTorch가 FP32 convolution을 기본적으로 TF32로 실행하므로 `compute_dtype="float32"`만으로는 완전한 FP32가 아니다(GDN2 short convolution에서 약 1e-3 상대 차이). 정확한 FP32가 필요하면 `torch.backends.cudnn.allow_tf32 = False`(matmul의 TF32를 켰다면 `torch.backends.cuda.matmul.allow_tf32 = False`도)를 함께 설정한다.
 
 ### 지원 범위
 
 | 항목 | 현재 지원 |
 |---|---|
-| Hugging Face 연동 | `AutoConfig`, `AutoTokenizer`, `AutoModelForCausalLM` |
-| 추론 | `forward()` logits, `generate()` 텐서 출력 |
+| Hugging Face 연동 | `AutoConfig`, `AutoTokenizer`, `AutoModel`, `AutoModelForCausalLM` (패키지 설치 또는 `trust_remote_code=True`) |
+| 추론 | `forward()` logits, `AutoModel` hidden state, `generate()` 텐서 출력 |
 | 생성 | Greedy, temperature·top-p·top-k sampling, sampling 시 다중 응답 |
 | 배치 | 좌·우 패딩, 인접한 동일 길이 입력의 배치 생성 |
 | 배치 생성 옵션 | `generation_batch_size`, 기본값 1 |
+| 백엔드 | `torch`(기본, CPU·CUDA), `cpu`(FP32 CPU 전용), `flash`(Linux CUDA, 선택 설치) |
 
-일반 `AutoModel` backbone 출력, `device_map`·offload, 양자화, beam search, streamer, 생성 scores 반환과 외부 HF `past_key_values` 입력은 현재 지원 범위 밖이다. 생성 캐시는 생성 호출 중 모델에 연결되므로 서비스에서는 같은 모델 인스턴스의 `generate()` 요청을 직렬화하거나 인스턴스를 분리한다.
-
-GitHub 배포본에는 소스 코드와 문서를 포함한다. `exports/`, 가중치, 캐시와 가상환경은 `.gitignore`에서 제외한다.
+`device_map`·offload, 양자화, beam search, streamer, 생성 scores 반환, `inputs_embeds`, `output_attentions`, 외부 HF `past_key_values` 입력은 현재 지원 범위 밖이다. 생성 캐시는 생성 호출 중 모델 인스턴스에 연결되므로 서비스에서는 같은 인스턴스의 `generate()` 요청을 직렬화하거나 인스턴스를 분리한다.
 
 ## 한계
 
-Nova-1B의 생성 결과에는 사실 오류나 부정확한 응답이 포함될 수 있다. 평가에서 **KoBEST WiC의 특정 답변 편향**과 **CoNLL-2003 0-shot의 출력 형식 오류**가 확인됐다. 평문 입력에서도 질문에 따라 반복이나 지시 이탈이 발생할 수 있다. 장문 이해 및 실제 서비스 환경의 성능은 별도 검증이 필요하다.
+- Nova-1B의 생성 결과에는 사실 오류나 부정확한 응답이 포함될 수 있다. 평가에서 **KoBEST WiC의 특정 답변 편향**과 **CoNLL-2003 0-shot의 출력 형식 오류**가 확인됐다.
+- 평문 입력에서도 질문에 따라 반복이나 지시 이탈이 발생할 수 있으며, 자기소개 등 개방형 입력에서는 후속 질문을 계속 생성하여 생성 상한에 도달할 수 있다.
+- 수학 추론과 코드 생성은 개선이 필요한 영역이다. 언어 이해 과제의 점수가 이 영역의 성능을 보장하지 않는다.
+- 장문 이해 및 실제 서비스 환경의 성능은 별도 검증이 필요하다.
+- 유해성·편향·개인정보 노출에 대한 별도 안전성 평가는 수행하지 않았다. 학습 데이터에 공개 웹 크롤 데이터가 포함되어 있어 편향되거나 부적절한 텍스트를 생성할 수 있다. 서비스 적용 시 입력·출력 필터링과 자체 환경에서의 평가는 사용자의 책임이다.
+- 대화 템플릿을 통한 다중 턴 대화는 지원 인터페이스가 아니며 좋은 성능을 기대할 수 없다.
 
 ## 개발자 및 기여
 
-| &nbsp;&nbsp;개&#8288;발&#8288;자&nbsp;&nbsp; | 담당 업무 |
+| 개발자 | 담당 업무 |
 |---|---|
-| **박&#8288;정&#8288;연** | Nova-1B 모델 아키텍처 선정 및 구현, 학습 데이터 수집, 평가 데이터셋 구축 및 가공, post-training(SFT·DPO·SAPO) 수행 및 모델 성능 평가 |
-| **이&#8288;경&#8288;진** | 영어·지시·선호 데이터셋 수집 및 학습 데이터 구성, pre-training 파이프라인 개발·수행, pre-training 모델 성능 평가 |
-| **조&#8288;지&#8288;윤** | 한국어 및 도표·수식·코드 데이터 수집·가공, 자체 Byte-Level BPE 토크나이저 개발 |
+| **박정연** | Nova-1B 모델 아키텍처 선정 및 구현, 학습 데이터 수집, 평가 데이터셋 구축 및 가공, post-training(SFT·DPO·RL) 수행 및 모델 성능 평가 |
+| **이경진** | 영어·지시·선호 데이터셋 수집 및 학습 데이터 구성, pre-training 파이프라인 개발·수행, pre-training 모델 성능 평가 |
+| **조지윤** | 한국어 및 도표·수식·코드 데이터 수집·가공, 자체 Byte-Level BPE 토크나이저 개발 |
+
+문의: 이경진 (kjlee@insightnova.kr)
 
 ## 참고한 공개 프로젝트
 

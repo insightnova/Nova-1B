@@ -1,9 +1,9 @@
 Nova-1B inference release preparation
 Developer: INSIGHTNOVA
 
-The gdnh2 architecture and cached decoding implementation were adapted from the
-Nova-1B model code. SOURCE_PROVENANCE.json records the input source hashes.
-The release wrapper/exporter separates inference from the post-training pipeline.
+The GDN2/GQA architecture and cached decoding implementation were adapted from
+the Nova-1B model code. SOURCE_PROVENANCE.json records the input source hashes.
+The release wrapper and exporter contain inference code only.
 
 External dependencies (installed separately; their sources are not bundled):
 - OLMo-core: https://github.com/allenai/OLMo-core
@@ -17,8 +17,7 @@ External dependencies (installed separately; their sources are not bundled):
 
 Copyright (c) 2026 INSIGHTNOVA.
 INSIGHTNOVA-owned source code and documentation are licensed under the Apache
-License, Version 2.0; see LICENSE. Model weights are distributed separately and
-their license must be specified in the applicable model repository.
+License, Version 2.0; see LICENSE.
 Retain the applicable dependency notices and license obligations when distributing.
 
 CPU GDN2 recurrence reference:

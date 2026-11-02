@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nova-1b-inference"
-version = "0.1.0"
-description = "INSIGHTNOVA Nova-1B inference and Hugging Face export"
+version = "0.2.0"
+description = "INSIGHTNOVA Nova-1B inference with Hugging Face Transformers"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.txt"]
@@ -23,11 +23,6 @@ flash = [
     # FlashAttention is installed separately with --no-build-isolation.
     "setuptools>=77", "wheel", "packaging", "psutil", "ninja",
 ]
-test = ["pytest>=8,<10"]
 
 [tool.setuptools]
 packages = ["nova"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-ra"

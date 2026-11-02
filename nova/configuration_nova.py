@@ -9,23 +9,30 @@ DEFAULT_OPTIONS = dict(d_model=1536, n_layers=26, n_heads=12, n_kv_heads=4,
     swa_full_attention_first_layer=False, swa_full_attention_last_layer=False,
     gdn_expand_v=2.0, gdn_allow_neg_eigval=True, gdn_conv_size=4, gdn_conv_bias=False)
 
+# Remote-code entry points written to config.json. The Hub resolves these with
+# trust_remote_code=True; a local `pip install -e .` plus nova.register() maps the
+# same classes without remote code.
+AUTO_MAP = {
+    "AutoConfig": "configuration_nova.NovaConfig",
+    "AutoModel": "modeling_nova.NovaModel",
+    "AutoModelForCausalLM": "modeling_nova.NovaForCausalLM",
+}
+
 
 class NovaConfig(PretrainedConfig):
     model_type = "nova_gdn2"
 
-    def __init__(self, native_size="main", native_options=None, vocab_size=65536,
+    def __init__(self, architecture_preset="main", architecture_options=None, vocab_size=65536,
                  hidden_size=1536, num_hidden_layers=26, max_position_embeddings=8192,
                  fast_decode=True, compute_dtype="bfloat16", tokenizer_vocab_size=None,
                  generation_context_policy="remaining", inference_backend="torch", **kwargs):
-        # Architecture code is bundled, never imported from a training-machine path.
-        kwargs.pop("native_repo", None)
         kwargs.pop("use_cache", None)
         kwargs.setdefault("bos_token_id", 1)
         kwargs.setdefault("eos_token_id", 2)
         kwargs.setdefault("pad_token_id", 0)
         super().__init__(use_cache=False, **kwargs)
-        self.native_size = native_size
-        self.native_options = dict(DEFAULT_OPTIONS if native_options is None else native_options)
+        self.architecture_preset = architecture_preset
+        self.architecture_options = dict(DEFAULT_OPTIONS if architecture_options is None else architecture_options)
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers

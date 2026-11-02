@@ -8,25 +8,34 @@ from typing import Optional
 
 import torch
 
-from olmo_core.config import DType
-from olmo_core.nn.attention import (
-    AttentionBackendName,
-    AttentionConfig,
-    AttentionType,
-    SlidingWindowAttentionConfig,
-    flash_attn_api,
-)
-from .gdn2 import GatedDeltaNet2Config
-from olmo_core.nn.feed_forward import FeedForwardConfig
-from olmo_core.nn.layer_norm import LayerNormConfig, LayerNormType
-from olmo_core.nn.lm_head import LMHeadConfig
-from olmo_core.nn.rope import RoPEConfig, RoPEType
-from olmo_core.nn.transformer import (
-    TransformerBlockConfig,
-    TransformerBlockType,
-    TransformerConfig,
-)
+# Optional accelerated-path dependency. The try block keeps Transformers'
+# remote-code import scan from requiring OLMo-core for the default torch backend;
+# this module is only imported after modeling_nova verifies the flash extras.
+try:
+    from olmo_core.config import DType
+    from olmo_core.nn.attention import (
+        AttentionBackendName,
+        AttentionConfig,
+        AttentionType,
+        SlidingWindowAttentionConfig,
+        flash_attn_api,
+    )
+    from olmo_core.nn.feed_forward import FeedForwardConfig
+    from olmo_core.nn.layer_norm import LayerNormConfig, LayerNormType
+    from olmo_core.nn.lm_head import LMHeadConfig
+    from olmo_core.nn.rope import RoPEConfig, RoPEType
+    from olmo_core.nn.transformer import (
+        TransformerBlockConfig,
+        TransformerBlockType,
+        TransformerConfig,
+    )
+except ImportError as error:  # pragma: no cover - exercised only without .[flash]
+    raise ImportError(
+        "nova.architecture requires the flash extras (OLMo-core). Install `.[flash]` "
+        "or load the model with inference_backend='torch'."
+    ) from error
 
+from .gdn2 import GatedDeltaNet2Config
 from .architecture_config import MODEL_SHAPES, ModelOptions, ModelShape, ModelSize, SEED
 
 log = logging.getLogger(__name__)

@@ -13,14 +13,27 @@ from typing import TYPE_CHECKING
 import torch
 from torch import nn
 
-from olmo_core.config import DType
-from olmo_core.nn.attention.base import SequenceMixer, SequenceMixerConfig
+# Optional accelerated-path dependencies (OLMo-core, FLA). Each import below is
+# wrapped so Transformers' remote-code import scan does not require them for the
+# default torch backend; modeling_nova imports this module only after checking
+# that the flash extras are installed.
+try:
+    from olmo_core.config import DType
+    from olmo_core.nn.attention.base import SequenceMixer, SequenceMixerConfig
+except ImportError as error:  # pragma: no cover - exercised only without .[flash]
+    raise ImportError(
+        "nova.gdn2 requires the flash extras (OLMo-core and flash-linear-attention). "
+        "Install `.[flash]` or load the model with inference_backend='torch'."
+    ) from error
 
 from .sequence_utils import flatten_documents
 from .gdn2_spec import GDN2Spec
 
-if TYPE_CHECKING:
-    from olmo_core.nn.transformer.init import InitMethod
+if TYPE_CHECKING:  # pragma: no cover
+    try:
+        from olmo_core.nn.transformer.init import InitMethod
+    except ImportError:
+        pass
 
 
 class GatedDeltaNet2(SequenceMixer):
@@ -56,7 +69,10 @@ class GatedDeltaNet2(SequenceMixer):
         )
         if not math.isfinite(norm_eps) or norm_eps <= 0:
             raise ValueError("norm_eps must be finite and positive")
-        from fla.layers.gdn2 import GatedDeltaNet2 as FLAGatedDeltaNet2
+        try:
+            from fla.layers.gdn2 import GatedDeltaNet2 as FLAGatedDeltaNet2
+        except ImportError as error:  # pragma: no cover
+            raise ImportError("GatedDeltaNet2 requires flash-linear-attention 0.5.2 (`.[flash]`)") from error
 
         # FLA accepts **kwargs but does not implement OLMo's init_device/dtype
         # arguments. Use PyTorch's device context, including for meta tensors.
@@ -91,7 +107,10 @@ class GatedDeltaNet2(SequenceMixer):
             raise ValueError("Call model.eval() before enabling incremental decoding")
         if batch_size <= 0 or max_seq_len <= 0:
             raise ValueError("batch_size and max_seq_len must be positive")
-        from fla.models.utils import Cache
+        try:
+            from fla.models.utils import Cache
+        except ImportError as error:  # pragma: no cover
+            raise ImportError("GatedDeltaNet2 requires flash-linear-attention 0.5.2 (`.[flash]`)") from error
 
         self._decode_cache = Cache()
         self._decode_batch_size = batch_size
@@ -154,7 +173,10 @@ class GatedDeltaNet2(SequenceMixer):
         num_blocks: int, std: float = 0.02, generator: torch.Generator | None = None,
     ) -> None:
         """Reinitialize every parameter after OLMo's meta -> to_empty step."""
-        from olmo_core.nn.transformer.init import InitMethod, init_linear
+        try:
+            from olmo_core.nn.transformer.init import InitMethod, init_linear
+        except ImportError as error:  # pragma: no cover
+            raise ImportError("GatedDeltaNet2.init_weights requires OLMo-core (`.[flash]`)") from error
 
         if init_method == InitMethod.fan_in:
             raise NotImplementedError("fan_in initialization is not supported for GDN2")

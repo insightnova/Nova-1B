@@ -56,8 +56,8 @@ def generate_batched(model, ids, mask, requested, eos_ids, pad, option, limit):
     decoder = None
     if model.config.fast_decode:
         if model.config.inference_backend in ("torch", "cpu"):
-            decoder = (lambda native, **kw: native.enable_decode(**kw),
-                       lambda native: native.disable_decode())
+            decoder = (lambda backbone, **kw: backbone.enable_decode(**kw),
+                       lambda backbone: backbone.disable_decode())
         else:
             from .fast_decode import enable, disable
             decoder = (enable, disable)
@@ -78,10 +78,10 @@ def generate_batched(model, ids, mask, requested, eos_ids, pad, option, limit):
             lengths = torch.zeros(count, device=ids.device, dtype=torch.long)
             try:
                 if decoder:
-                    decoder[0](model.native, max_seq_len=prompt.shape[1]+budget, batch_size=count)
+                    decoder[0](model.backbone, max_seq_len=prompt.shape[1]+budget, batch_size=count)
                 current = prompt
                 for step in range(budget):
-                    token = sample_token(model._native_logits(current)[:, -1], option("do_sample", False),
+                    token = sample_token(model._backbone_logits(current)[:, -1], option("do_sample", False),
                         option("temperature", 1.0), option("top_p", 1.0), option("top_k", 0))
                     token = torch.where(alive, token, pad)
                     tail[:, step] = token
@@ -93,7 +93,7 @@ def generate_batched(model, ids, mask, requested, eos_ids, pad, option, limit):
                     current = token[:, None] if decoder else torch.cat([current, token[:, None]], dim=1)
             finally:
                 if decoder:
-                    decoder[1](model.native)
+                    decoder[1](model.backbone)
             completions.extend(tail[row, :n] for row, n in enumerate(lengths.tolist()))
     finally:
         model.train(was_training)

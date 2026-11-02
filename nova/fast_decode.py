@@ -8,8 +8,15 @@ from __future__ import annotations
 
 import torch
 
-from olmo_core.nn.attention import Attention
-from olmo_core.nn.attention.kv_cache import KVCacheManager
+# Optional accelerated-path dependency; see nova.architecture for the rationale.
+try:
+    from olmo_core.nn.attention import Attention
+    from olmo_core.nn.attention.kv_cache import KVCacheManager
+except ImportError as error:  # pragma: no cover - exercised only without .[flash]
+    raise ImportError(
+        "nova.fast_decode requires the flash extras (OLMo-core). Install `.[flash]` "
+        "or load the model with inference_backend='torch'."
+    ) from error
 
 from .gdn2 import GatedDeltaNet2
 
@@ -19,8 +26,8 @@ __all__ = ["enable", "reset", "disable", "is_enabled"]
 class _HostPositionKVCache(KVCacheManager):
     """Track a common prompt position without synchronizing a GPU scalar.
 
-    This subclass is attached only to the model passed to enable(). The base
-    KVCacheManager used by gdnh1 and other models is unchanged.
+    This subclass is attached only to the model passed to enable(); the base
+    OLMo-core KVCacheManager is left unchanged.
     """
 
     def __init__(self, **kwargs):
@@ -65,7 +72,7 @@ def enable(model, max_seq_len: int, batch_size: int = 1) -> None:
         raise ValueError("batch_size and max_seq_len must be positive")
     attn, gdn = _modules(model)
     if not gdn:
-        raise ValueError("No gdnh2 GatedDeltaNet2 layers found")
+        raise ValueError("No GatedDeltaNet2 layers found")
     # Validate all backends before allocating or mutating any caches.
     for module in attn:
         module.backend.assert_supports_kv_cache()

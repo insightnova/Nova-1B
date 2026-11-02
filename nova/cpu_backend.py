@@ -155,7 +155,7 @@ class Attention(nn.Module):
             k, v = torch.cat((self.keys, k), dim=2), torch.cat((self.values, v), dim=2)
         key_start = start+length-k.shape[2]
         if self.cached:
-            # OLMo passes (W-1, 0) to FlashAttention: W keys including self.
+            # The accelerated path passes window (W-1, 0) to FlashAttention: W keys including self.
             keep = self.window-1 if self.window is not None else k.shape[2]
             self.keys = k[:, :, -keep:].clone() if keep else k[:, :, :0]
             self.values = v[:, :, -keep:].clone() if keep else v[:, :, :0]
@@ -205,10 +205,10 @@ class Block(nn.Module):
 class TorchBackbone(nn.Module):
     def __init__(self, config):
         super().__init__()
-        unknown = set(config.native_options)-set(DEFAULT_OPTIONS)
+        unknown = set(config.architecture_options)-set(DEFAULT_OPTIONS)
         if unknown:
             raise ValueError(f'Unsupported portable architecture options: {sorted(unknown)}')
-        o = dict(DEFAULT_OPTIONS, **config.native_options)
+        o = dict(DEFAULT_OPTIONS, **config.architecture_options)
         if (o['d_model'] != o['n_heads']*o['head_dim'] or o['n_layers'] % 2
                 or o['head_dim'] % 2 or o['gdn_conv_size'] < 1
                 or o['n_heads'] % (o['n_kv_heads'] or o['n_heads'])
@@ -246,8 +246,8 @@ class TorchBackbone(nn.Module):
                 module.clear()
 
     def forward(self, ids, return_logits=True):
-        if not return_logits:
-            raise ValueError('Portable backend provides inference logits only')
+        """Return vocabulary logits, or with return_logits=False the final
+        RMS-normalized hidden states that feed the output projection."""
         if self._cache_limit is not None:
             if self.training or torch.is_grad_enabled():
                 raise ValueError('Cached decoding requires eval() and no_grad()/inference_mode()')
@@ -260,4 +260,5 @@ class TorchBackbone(nn.Module):
         # generate only consumes the last logit; avoid a prompt-by-vocab allocation.
         if self._cache_limit is not None:
             x = x[:, -1:]
-        return self.lm_head.w_out(self.lm_head.norm(x))
+        hidden = self.lm_head.norm(x)
+        return self.lm_head.w_out(hidden) if return_logits else hidden
