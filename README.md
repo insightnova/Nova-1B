@@ -392,11 +392,28 @@ Ampere 이후 GPU에서는 PyTorch가 FP32 convolution을 기본적으로 TF32�
 
 ## 개발자 및 기여
 
-| 개발자 | 담당 업무 |
-|---|---|
-| **박정연** | Nova-1B 모델 아키텍처 선정 및 구현, 학습 데이터 수집, 평가 데이터셋 구축 및 가공, post-training(SFT·DPO·RL) 수행 및 모델 성능 평가 |
-| **이경진** | 영어·지시·선호 데이터셋 수집 및 학습 데이터 구성, pre-training 파이프라인 개발·수행, pre-training 모델 성능 평가 |
-| **조지윤** | 한국어 및 도표·수식·코드 데이터 수집·가공, 자체 Byte-Level BPE 토크나이저 개발 |
+<table>
+  <thead>
+    <tr>
+      <th width="120">개발자</th>
+      <th>담당 업무</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>박정연</strong></td>
+      <td>Nova-1B 모델 아키텍처 선정 및 구현, 학습 데이터 수집, 평가 데이터셋 구축 및 가공, post-training(SFT·DPO·RL) 수행 및 모델 성능 평가</td>
+    </tr>
+    <tr>
+      <td><strong>이경진</strong></td>
+      <td>영어·지시·선호 데이터셋 수집 및 학습 데이터 구성, pre-training 파이프라인 개발·수행, pre-training 모델 성능 평가</td>
+    </tr>
+    <tr>
+      <td><strong>조지윤</strong></td>
+      <td>한국어 및 도표·수식·코드 데이터 수집·가공, 자체 Byte-Level BPE 토크나이저 개발</td>
+    </tr>
+  </tbody>
+</table>
 
 문의: 이경진 (kjlee@insightnova.kr)
 
