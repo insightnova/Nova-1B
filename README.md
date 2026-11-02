@@ -268,8 +268,6 @@ model = AutoModelForCausalLM.from_pretrained(
 ).to(device).eval()
 ```
 
-패키지를 설치하지 않고 Hub 저장소의 모델 코드를 그대로 쓰려면 `nova.register()` 없이 `trust_remote_code=True`를 지정한다. 모델 코드가 Hub에서 내려받아 실행되므로, 재현이 중요한 배포에서는 검토한 commit을 `revision="<commit-sha>"`로 고정한다.
-
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
